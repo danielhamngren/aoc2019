@@ -86,12 +86,12 @@ mod tests {
         assert_eq!(2, total_fuel(12));
     }
 
-        #[test]
+    #[test]
     fn test_total_fuel_2() {
         assert_eq!(966, total_fuel(1969));
     }
 
-        #[test]
+    #[test]
     fn test_total_fuel_3() {
         assert_eq!(50346, total_fuel(100756));
     }
