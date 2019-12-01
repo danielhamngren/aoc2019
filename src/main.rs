@@ -1,16 +1,28 @@
 use std::fs::File;
 use std::io::prelude::*;
+use std::io::BufReader;
 
 fn main() {
     let filename = "input";
     println!("In file {}", filename);
 
-    let mut f = File::open(filename).expect("file not found");
+    let f = File::open(filename).expect("file not found");
 
-    let mut contents = String::new();
-    f.read_to_string(&mut contents)
-        .expect("something went wrong reading the file.");
-    println!("With text:\n{}", contents);
+    let reader = BufReader::new(f);
+
+    // https://stackoverflow.com/a/53610493
+    // I can use unwrap because I'm sure that every line will be read correctly.
+    // I'm basing this on faith alone. Would probably be good to have some
+    // additional error checking here.
+    let lines: Vec<String> = reader.lines().collect::<Result<_, _>>().unwrap();
+
+    let input = lines.iter().map(|l| l.parse::<i32>().unwrap());
+
+    let fuel_draw = input.map(|x| calculate_fuel(x));
+
+    let fuel_draw_total: i32 = fuel_draw.sum();
+
+    println!("Total fuel: {}", fuel_draw_total);
 }
 
 pub fn calculate_fuel(mass: i32) -> i32 {
