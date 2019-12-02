@@ -3,7 +3,7 @@ use std::io::prelude::*;
 use std::io::BufReader;
 
 pub fn day1() {
-    let filename = "input";
+    let filename = "resources/day1_input";
     let lines: Vec<String> = read_file(filename);
     let lines_clone = lines.clone();
     
