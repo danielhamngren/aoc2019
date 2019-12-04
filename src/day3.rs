@@ -13,7 +13,7 @@ pub fn day3() {
 }
 
 fn part1(lines: &Vec<String>) {
-  println!("Day 2: Part 1");
+  println!("Day 3: Part 1");
 
   let (vec1, vec2) = preprocessing(&lines);
 
@@ -23,7 +23,7 @@ fn part1(lines: &Vec<String>) {
 }
 
 fn part2(lines: &Vec<String>) {
-  println!("Day 2: Part 2");
+  println!("Day 3: Part 2");
 
   let (vec1, vec2) = preprocessing(&lines);
 

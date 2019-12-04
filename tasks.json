@@ -6,7 +6,7 @@
     {
       "taskName": "test",
       "args": [
-        "day3"
+        "day4"
         // More args
       ],
       "showOutput": "always"
