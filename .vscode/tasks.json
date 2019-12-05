@@ -6,7 +6,7 @@
     {
       "label": "test",
       "type": "shell",
-      "command": "cargo test day4",
+      "command": "cargo test day5",
       "group": {
         "kind": "build",
         "isDefault": true

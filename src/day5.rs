@@ -5,15 +5,13 @@ pub fn day5() {
   let lines: Vec<String> = utils::read_file(filename);
 
   part1(&lines);
-  // part2(&lines);
+  part2(&lines);
 }
 
 fn part1(lines: &Vec<String>) {
   println!("Day 5: Part 1");
 
   let mut program = preprocessing(lines);
-  // set_initial_values(&mut program, 12, 2);
-
   let output = run_intcode(&mut program, 1);
 
   println!("Result part 1: {}", output);
@@ -22,26 +20,11 @@ fn part1(lines: &Vec<String>) {
 fn part2(lines: &Vec<String>) {
   println!("Day 5: Part 2");
 
-  let program_input = preprocessing(lines);
-  let mut program = program_input.clone();
+  let mut program = preprocessing(lines);
 
-  // 'outer: for noun in 0..99 {
-  //   'inner: for verb in 0..99 {
-  //     program = program_input.clone();
-  //     set_initial_values(&mut program, noun, verb);
-  //     run_intcode(&mut program);
-  //     println!("noun {}, verb {}", noun, verb);
-  //     let stop_criteria = 19690720;
-  //     if program[0] == 19690720 {
-  //       println!(
-  //         "{} found, noun is {}, verb is {}",
-  //         stop_criteria, noun, verb
-  //       );
-  //       println!("100 * noun + verb = {}", 100 * noun + verb);
-  //       break 'outer;
-  //     }
-  //   }
-  // }
+  let output = run_intcode(&mut program, 5);
+
+  println!("Result part 2: {}", output);
 }
 
 fn preprocessing(lines: &Vec<String>) -> Vec<i32> {
@@ -55,15 +38,7 @@ fn preprocessing(lines: &Vec<String>) -> Vec<i32> {
   program
 }
 
-fn set_initial_values(program: &mut Vec<i32>, noun: i32, verb: i32) {
-  program[1] = noun;
-  program[2] = verb;
-}
-
 fn run_intcode(intcode: &mut Vec<i32>, input: i32) -> i32 {
-  // for i in 0..intcode.len() {
-  //   println!("{}: {}", i, intcode[i]);
-  // }
   let mut done = false;
   let mut pc = 0; // short for program counter
   let mut output = 0;
@@ -79,56 +54,26 @@ fn run_intcode(intcode: &mut Vec<i32>, input: i32) -> i32 {
       current_instuction / 100 % 10,
       current_instuction / 1000 % 10,
     ];
-    println!("pc: {} opcode: {}, mode: {:?}", pc, opcode, mode);
+    print!("pc: {} opcode: {}, mode: {:?} ", pc, opcode, mode);
 
     match opcode {
       1 => {
-        // println!("Match 1, add");
-        let first_param = match mode[0] {
-          0 => intcode[intcode[pc + 1] as usize],
-          1 => intcode[pc + 1],
-          _ => {
-            println!("mode match error");
-            0
-          }
-        };
-        let second_param = match mode[1] {
-          0 => intcode[intcode[pc + 2] as usize],
-          1 => intcode[pc + 2],
-          _ => {
-            println!("mode match error");
-            0
-          }
-        };
+        //  add
+        let (first_param, second_param) = get_params(&mode, intcode, pc);
         let result = first_param + second_param;
         let store_address = intcode[pc + 3] as usize;
         intcode[store_address] = result;
         pc += 4;
+        println!("{} {} {}", first_param, second_param, store_address);
       }
       2 => {
-        // println!("Match 2, multiply");
-        let first_param = match mode[0] {
-          0 => intcode[intcode[pc + 1] as usize],
-          1 => intcode[pc + 1],
-          _ => {
-            println!("mode match error");
-            0
-          }
-        };
-        let second_param = match mode[1] {
-          0 => intcode[intcode[pc + 2] as usize],
-          1 => intcode[pc + 2],
-          _ => {
-            println!("mode match error");
-            0
-          }
-        };
-        // let first_param = intcode[intcode[pc + 1] as usize];
-        // let second_param = intcode[intcode[pc + 2] as usize];
+        // multiply
+        let (first_param, second_param) = get_params(&mode, intcode, pc);
         let result = first_param * second_param;
         let store_address = intcode[pc + 3] as usize;
         intcode[store_address] = result;
         pc += 4;
+        println!("{} {} {}", first_param, second_param, store_address);
       }
       3 => {
         // input instruction
@@ -139,13 +84,64 @@ fn run_intcode(intcode: &mut Vec<i32>, input: i32) -> i32 {
       }
       4 => {
         // output instruction
+        let param = get_next_param(&mode, intcode, pc);
         let fetch_address = intcode[pc + 1] as usize;
-        output = intcode[fetch_address];
-        println!("address {} output {}", fetch_address, output);
+        output = param;
+        println!("output {}", output);
         pc += 2
       }
+      5 => {
+        // jump-if-true
+        // let param = get_next_param(&mode, intcode, pc);
+        let (first_param, second_param) = get_params(&mode, intcode, pc);
+        println!("{} {}", first_param, second_param);
+        if first_param != 0 {
+          // pc = intcode[pc + 2] as usize;
+          pc = second_param as usize;
+        } else {
+          pc += 3
+        }
+      }
+      6 => {
+        // jump-if-false
+        // let param = get_next_param(&mode, intcode, pc);
+        let (first_param, second_param) = get_params(&mode, intcode, pc);
+        println!("{} {}", first_param, second_param);
+        if first_param == 0 {
+          // pc = intcode[pc + 2] as usize;
+          pc = second_param as usize;
+        } else {
+          pc += 3
+        }
+      }
+      7 => {
+        // less than
+        let (first_param, second_param) = get_params(&mode, intcode, pc);
+        let store_address = intcode[pc + 3] as usize;
+        println!("{} {} {}", first_param, second_param, store_address);
+
+        if first_param < second_param {
+          intcode[store_address] = 1;
+        } else {
+          intcode[store_address] = 0;
+        }
+        pc += 4;
+      }
+      8 => {
+        // equals
+        let (first_param, second_param) = get_params(&mode, intcode, pc);
+        let store_address = intcode[pc + 3] as usize;
+        println!("{} {} {}", first_param, second_param, store_address);
+
+        if first_param == second_param {
+          intcode[store_address] = 1;
+        } else {
+          intcode[store_address] = 0;
+        }
+        pc += 4;
+      }
       99 => {
-        // println!{"Match 99, terminate"}
+        // halt
         done = true;
       }
       _ => {
@@ -157,6 +153,37 @@ fn run_intcode(intcode: &mut Vec<i32>, input: i32) -> i32 {
     // no need to check for reads and writes outside of vector.
   }
   output
+}
+
+fn get_next_param(mode: &Vec<i32>, intcode: &Vec<i32>, pc: usize) -> (i32) {
+  match mode[0] {
+    0 => intcode[intcode[pc + 1] as usize],
+    1 => intcode[pc + 1],
+    _ => {
+      println!("mode match error");
+      0
+    }
+  }
+}
+
+fn get_params(mode: &Vec<i32>, intcode: &Vec<i32>, pc: usize) -> (i32, i32) {
+  let first_param = match mode[0] {
+    0 => intcode[intcode[pc + 1] as usize],
+    1 => intcode[pc + 1],
+    _ => {
+      println!("mode match error");
+      0
+    }
+  };
+  let second_param = match mode[1] {
+    0 => intcode[intcode[pc + 2] as usize],
+    1 => intcode[pc + 2],
+    _ => {
+      println!("mode match error");
+      0
+    }
+  };
+  (first_param, second_param)
 }
 
 #[cfg(test)]
@@ -254,7 +281,7 @@ mod tests {
   fn jump_check_if_zero_position_false() {
     let mut vec = vec![3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, -1, 0, 1, 9];
     let output = run_intcode(&mut vec, -3);
-    assert_eq!(output, 0);
+    assert_eq!(output, 1);
   }
   #[test]
   fn jump_check_if_zero_immediate_true() {
@@ -266,7 +293,7 @@ mod tests {
   fn jump_check_if_zero_immediate_false() {
     let mut vec = vec![3, 3, 1105, -1, 9, 1101, 0, 0, 12, 4, 12, 99, 1];
     let output = run_intcode(&mut vec, -3);
-    assert_eq!(output, 0);
+    assert_eq!(output, 1);
   }
   #[test]
   fn large_test_is_8() {
