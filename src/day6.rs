@@ -9,7 +9,21 @@ pub fn day6() {
 }
 
 fn part1(lines: &Vec<String>) {
-  println!("Day 5: Part 1");
+  println!("Day 6: Part 1");
+
+  let tuples = preprocessing(lines);
+  let orbit_pairs = preprocessing(&lines);
+
+  let mut graph = HashMap::new();
+  populate_graph(orbit_pairs, &mut graph);
+
+  let total_connections = calculate_connections(&graph);
+
+  println!("Result part 1: {}", total_connections);
+}
+
+fn part2(lines: &Vec<String>) {
+  println!("Day 6: Part 1");
 
   let tuples = preprocessing(lines);
   let orbit_pairs = preprocessing(&lines);
