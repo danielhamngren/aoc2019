@@ -94,8 +94,8 @@ fn calculate_connections_between_nodes(
   connections_to_root_node(node1, graph, &mut output_node1);
   connections_to_root_node(node2, graph, &mut output_node2);
 
-  println!("{:?}", output_node1);
-  println!("{:?}", output_node2);
+  // println!("{:?}", output_node1);
+  // println!("{:?}", output_node2);
   let mut number_of_connections = 0;
   'outer: for i in 0..output_node1.len() {
     for j in 0..output_node2.len() {
