@@ -25,7 +25,7 @@ fn part1(lines: &Vec<String>) {
 fn part2(lines: &Vec<String>) {
   println!("Day 7: Part 2");
 
-  let mut program = preprocessing(lines);
+  let program = preprocessing(lines);
   let phases = vec![9, 8, 7, 6, 5];
 
   let output = find_max_thuster_feedback_loop(&program, &phases);
@@ -63,82 +63,35 @@ struct Program {
   output: i32,
 }
 
-fn find_max_thuster_feedback_loop(program: &Vec<i32>, phases: &Vec<i32>) -> i32 {
+fn find_max_thuster_feedback_loop(program_code: &Vec<i32>, phases: &Vec<i32>) -> i32 {
   let mut max_thruster = 0;
-  let mut output = 0;
+  // let mut output = 0;
 
   for phase_setting in create_permutations(&phases) {
-    let mut programA = Program {
-      code: program.clone(),
-      pc: 0,
-      input: VecDeque::new(),
-      running: true,
-      output: 0,
-    };
-    programA.input.push_back(phase_setting[0]);
-    programA.input.push_back(0);
+    let mut programs: Vec<Program> = Vec::new();
+    for i in 0..5 {
+      programs.push(Program {
+        code: program_code.clone(),
+        pc: 0,
+        input: VecDeque::new(),
+        running: true,
+        output: 0,
+      });
+      programs[i].input.push_back(phase_setting[i]);
+    }
+    programs[0].input.push_back(0);
 
-    let mut programB = Program {
-      code: program.clone(),
-      pc: 0,
-      input: VecDeque::new(),
-      running: true,
-      output: 0,
-    };
-    programB.input.push_back(phase_setting[1]);
-
-    let mut programC = Program {
-      code: program.clone(),
-      pc: 0,
-      input: VecDeque::new(),
-      running: true,
-      output: 0,
-    };
-    programC.input.push_back(phase_setting[2]);
-
-    let mut programD = Program {
-      code: program.clone(),
-      pc: 0,
-      input: VecDeque::new(),
-      running: true,
-      output: 0,
-    };
-    programD.input.push_back(phase_setting[3]);
-
-    let mut programE = Program {
-      code: program.clone(),
-      pc: 0,
-      input: VecDeque::new(),
-      running: true,
-      output: 0,
-    };
-    programE.input.push_back(phase_setting[4]);
-
-    while programA.running
-      && programB.running
-      && programC.running
-      && programD.running
-      && programE.running
-    {
-      run_program(&mut programA);
-
-      programB.input.push_back(programA.output);
-      run_program(&mut programB);
-
-      programC.input.push_back(programB.output);
-      run_program(&mut programC);
-
-      programD.input.push_back(programC.output);
-      run_program(&mut programD);
-
-      programE.input.push_back(programD.output);
-      run_program(&mut programE);
-
-      programA.input.push_back(programE.output);
+    while programs[4].running {
+      for i in 0..programs.len() {
+        run_program(&mut programs[i]);
+        let length = programs.len();
+        let output = programs[i].output;
+        programs[(i + 1) % length].input.push_back(output);
+      }
     }
 
-    if programE.output > max_thruster {
-      max_thruster = programE.output;
+    if programs[programs.len() - 1].output > max_thruster {
+      max_thruster = programs[programs.len() - 1].output;
     }
   }
   max_thruster
