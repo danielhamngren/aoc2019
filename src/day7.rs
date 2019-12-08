@@ -1,4 +1,5 @@
 use permutator::Permutation;
+use std::collections::VecDeque;
 
 use crate::utils;
 
@@ -7,7 +8,7 @@ pub fn day7() {
   let lines: Vec<String> = utils::read_file(filename);
 
   part1(&lines);
-  // part2(&lines);
+  part2(&lines);
 }
 
 fn part1(lines: &Vec<String>) {
@@ -17,7 +18,6 @@ fn part1(lines: &Vec<String>) {
 
   let phases = vec![0, 1, 2, 3, 4];
   let result = find_max_thuster(&program, &phases);
-  // let output = run_intcode(&mut program, 1);
 
   println!("Result part 1: {}", result);
 }
@@ -26,10 +26,11 @@ fn part2(lines: &Vec<String>) {
   println!("Day 7: Part 2");
 
   let mut program = preprocessing(lines);
-  let phases = vec![5, 6, 7, 8, 9];
-  // let output = run_intcode(&mut program, vec![5]);
+  let phases = vec![9, 8, 7, 6, 5];
 
-  // println!("Result part 2: {}", output);
+  let output = find_max_thuster_feedback_loop(&program, &phases);
+
+  println!("Result part 2: {}", output);
 }
 
 fn find_max_thuster(program: &Vec<i32>, phases: &Vec<i32>) -> i32 {
@@ -45,13 +46,101 @@ fn find_max_thuster(program: &Vec<i32>, phases: &Vec<i32>) -> i32 {
       // println!("{} {}", *setting, output);
     }
 
-    println!("setting {:?} max_thruster {}", phase_setting, output);
-
     if output > max_thruster {
       max_thruster = output;
     }
   }
 
+  max_thruster
+}
+
+#[derive(Debug)]
+struct Program {
+  code: Vec<i32>,
+  pc: usize,
+  input: VecDeque<i32>,
+  running: bool,
+  output: i32,
+}
+
+fn find_max_thuster_feedback_loop(program: &Vec<i32>, phases: &Vec<i32>) -> i32 {
+  let mut max_thruster = 0;
+  let mut output = 0;
+
+  for phase_setting in create_permutations(&phases) {
+    let mut programA = Program {
+      code: program.clone(),
+      pc: 0,
+      input: VecDeque::new(),
+      running: true,
+      output: 0,
+    };
+    programA.input.push_back(phase_setting[0]);
+    programA.input.push_back(0);
+
+    let mut programB = Program {
+      code: program.clone(),
+      pc: 0,
+      input: VecDeque::new(),
+      running: true,
+      output: 0,
+    };
+    programB.input.push_back(phase_setting[1]);
+
+    let mut programC = Program {
+      code: program.clone(),
+      pc: 0,
+      input: VecDeque::new(),
+      running: true,
+      output: 0,
+    };
+    programC.input.push_back(phase_setting[2]);
+
+    let mut programD = Program {
+      code: program.clone(),
+      pc: 0,
+      input: VecDeque::new(),
+      running: true,
+      output: 0,
+    };
+    programD.input.push_back(phase_setting[3]);
+
+    let mut programE = Program {
+      code: program.clone(),
+      pc: 0,
+      input: VecDeque::new(),
+      running: true,
+      output: 0,
+    };
+    programE.input.push_back(phase_setting[4]);
+
+    while programA.running
+      && programB.running
+      && programC.running
+      && programD.running
+      && programE.running
+    {
+      run_program(&mut programA);
+
+      programB.input.push_back(programA.output);
+      run_program(&mut programB);
+
+      programC.input.push_back(programB.output);
+      run_program(&mut programC);
+
+      programD.input.push_back(programC.output);
+      run_program(&mut programD);
+
+      programE.input.push_back(programD.output);
+      run_program(&mut programE);
+
+      programA.input.push_back(programE.output);
+    }
+
+    if programE.output > max_thruster {
+      max_thruster = programE.output;
+    }
+  }
   max_thruster
 }
 
@@ -64,6 +153,112 @@ fn preprocessing(lines: &Vec<String>) -> Vec<i32> {
     .collect::<Vec<i32>>();
 
   program
+}
+
+fn run_program(program: &mut Program) -> i32 {
+  while program.running {
+    if program.pc >= program.code.len() {
+      program.running = false;
+    }
+    // handle immediate/position mode params
+    let current_instuction = program.code[program.pc];
+
+    let opcode = current_instuction % 100;
+    let mode = vec![
+      current_instuction / 100 % 10,
+      current_instuction / 1000 % 10,
+    ];
+
+    match opcode {
+      1 => {
+        //  add
+        let (first_param, second_param) = get_params(&mode, &program.code, program.pc);
+        let result = first_param + second_param;
+        let store_address = program.code[program.pc + 3] as usize;
+        program.code[store_address] = result;
+        program.pc += 4;
+      }
+      2 => {
+        // multiply
+        let (first_param, second_param) = get_params(&mode, &program.code, program.pc);
+        let result = first_param * second_param;
+        let store_address = program.code[program.pc + 3] as usize;
+        program.code[store_address] = result;
+        program.pc += 4;
+      }
+      3 => {
+        // input instruction
+        if program.input.is_empty() {
+          return program.output;
+        }
+        let store_address = program.code[program.pc + 1] as usize;
+        let next_input = program.input.pop_front().expect("No input in input vector");
+        program.code[store_address] = next_input;
+        program.pc += 2
+      }
+      4 => {
+        // output instruction
+        let param = get_next_param(&mode, &program.code, program.pc);
+        let fetch_address = program.code[program.pc + 1] as usize;
+        program.output = param;
+        program.pc += 2
+      }
+      5 => {
+        // jump-if-true
+        let (first_param, second_param) = get_params(&mode, &program.code, program.pc);
+        if first_param != 0 {
+          program.pc = second_param as usize;
+        } else {
+          program.pc += 3
+        }
+      }
+      6 => {
+        // jump-if-false
+        let (first_param, second_param) = get_params(&mode, &program.code, program.pc);
+        if first_param == 0 {
+          program.pc = second_param as usize;
+        } else {
+          program.pc += 3
+        }
+      }
+      7 => {
+        // less than
+        let (first_param, second_param) = get_params(&mode, &program.code, program.pc);
+        let store_address = program.code[program.pc + 3] as usize;
+
+        if first_param < second_param {
+          program.code[store_address] = 1;
+        } else {
+          program.code[store_address] = 0;
+        }
+        program.pc += 4;
+      }
+      8 => {
+        // equals
+        let (first_param, second_param) = get_params(&mode, &program.code, program.pc);
+        let store_address = program.code[program.pc + 3] as usize;
+
+        if first_param == second_param {
+          program.code[store_address] = 1;
+        } else {
+          program.code[store_address] = 0;
+        }
+        program.pc += 4;
+      }
+      99 => {
+        // halt
+        program.running = false;
+        return program.output;
+      }
+      _ => {
+        println!("Match error!");
+        program.running = false;
+      }
+    }
+    // Assume intcodes are correctly written,
+    // no need to check for reads and writes outside of vector.
+  }
+  program.output
 }
 
 fn run_intcode(intcode: &mut Vec<i32>, program_input: Vec<i32>) -> i32 {
@@ -225,7 +420,6 @@ fn create_permutations(input: &Vec<i32>) -> Vec<Vec<i32>> {
   data.permutation().for_each(|p| {
     // call multiple times. It'll print [2, 1, 3], [3, 1, 2],
     // [1, 3, 2], [2, 3, 1], and [3, 2, 1] respectively.
-    // println!("{:?}", p);
     res.push(p);
   });
 
@@ -245,7 +439,7 @@ mod tests {
       1005, 28, 6, 99, 0, 0, 5,
     ];
 
-    let result = find_max_thuster(&program, &phases);
+    let result = find_max_thuster_feedback_loop(&program, &phases);
     assert_eq!(result, 139629729);
   }
 
@@ -259,7 +453,7 @@ mod tests {
       56, -1, 56, 1005, 56, 6, 99, 0, 0, 0, 0, 10,
     ];
 
-    let result = find_max_thuster(&program, &phases);
+    let result = find_max_thuster_feedback_loop(&program, &phases);
     assert_eq!(result, 18216);
   }
 
