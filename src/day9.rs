@@ -15,7 +15,7 @@ pub fn day9() {
   let lines: Vec<String> = utils::read_file(filename);
 
   part1(&lines);
-  // part2(&lines);
+  part2(&lines);
 }
 
 fn part1(lines: &Vec<String>) {
@@ -29,19 +29,19 @@ fn part1(lines: &Vec<String>) {
   for element in program.output {
     println!("output: {}", element);
   }
-
-  // println!("Result part 1: {}", program.output.pop_front().unwrap());
 }
 
 fn part2(lines: &Vec<String>) {
   println!("Day 9: Part 2");
 
-  let program = preprocessing(lines);
-  let phases = vec![9, 8, 7, 6, 5];
+  let mut code = preprocessing_i64(lines);
 
-  let output = find_max_thuster_feedback_loop(&program, &phases);
+  let mut program = prepare_program_i64(&mut code, &vec![2]);
+  run_program(&mut program);
 
-  println!("Result part 2: {}", output);
+  for element in program.output {
+    println!("output: {}", element);
+  }
 }
 
 fn prepare_program(code: &Vec<i32>, inputs: &Vec<i32>) -> Program {
