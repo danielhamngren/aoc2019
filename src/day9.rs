@@ -15,18 +15,22 @@ pub fn day9() {
   let lines: Vec<String> = utils::read_file(filename);
 
   part1(&lines);
-  part2(&lines);
+  // part2(&lines);
 }
 
 fn part1(lines: &Vec<String>) {
   println!("Day 9: Part 1");
 
-  let program = preprocessing(lines);
+  let mut code = preprocessing_i64(lines);
 
-  let phases = vec![0, 1, 2, 3, 4];
-  let result = find_max_thuster(&program, &phases);
+  let mut program = prepare_program_i64(&mut code, &vec![1]);
+  run_program(&mut program);
 
-  println!("Result part 1: {}", result);
+  for element in program.output {
+    println!("output: {}", element);
+  }
+
+  // println!("Result part 1: {}", program.output.pop_front().unwrap());
 }
 
 fn part2(lines: &Vec<String>) {
@@ -50,7 +54,26 @@ fn prepare_program(code: &Vec<i32>, inputs: &Vec<i32>) -> Program {
     relative_base: 0,
   };
   for (i, instruction) in code.iter().enumerate() {
-    program.code.insert(i as i32, *instruction);
+    program.code.insert(i as i64, *instruction as i64);
+  }
+
+  for input in inputs {
+    program.input.push_back(*input as i64);
+  }
+  program
+}
+
+fn prepare_program_i64(code: &Vec<i64>, inputs: &Vec<i64>) -> Program {
+  let mut program = Program {
+    code: HashMap::new(),
+    pc: 0,
+    input: VecDeque::new(),
+    running: true,
+    output: VecDeque::new(),
+    relative_base: 0,
+  };
+  for (i, instruction) in code.iter().enumerate() {
+    program.code.insert(i as i64, *instruction);
   }
 
   for input in inputs {
@@ -59,14 +82,14 @@ fn prepare_program(code: &Vec<i32>, inputs: &Vec<i32>) -> Program {
   program
 }
 
-fn find_max_thuster(code: &Vec<i32>, phases: &Vec<i32>) -> i32 {
+fn find_max_thuster(code: &Vec<i32>, phases: &Vec<i32>) -> i64 {
   let mut max_thruster = 0;
 
   for phase_setting in create_permutations(&phases) {
-    let mut output = 0;
+    let mut output = 0_i64;
 
     for setting in &phase_setting {
-      let mut program = prepare_program(code, &vec![*setting, output]);
+      let mut program = prepare_program(code, &vec![*setting, output as i32]);
 
       run_program(&mut program);
       output = program.output.pop_front().expect("output error");
@@ -82,22 +105,22 @@ fn find_max_thuster(code: &Vec<i32>, phases: &Vec<i32>) -> i32 {
 
 #[derive(Debug)]
 struct Program {
-  code: HashMap<i32, i32>,
-  pc: i32,
-  input: VecDeque<i32>,
+  code: HashMap<i64, i64>,
+  pc: i64,
+  input: VecDeque<i64>,
   running: bool,
-  output: VecDeque<i32>,
-  relative_base: i32,
+  output: VecDeque<i64>,
+  relative_base: i64,
 }
 
-fn find_max_thuster_feedback_loop(program_code: &Vec<i32>, phases: &Vec<i32>) -> i32 {
+fn find_max_thuster_feedback_loop(program_code: &Vec<i32>, phases: &Vec<i32>) -> i64 {
   let mut max_thruster = 0;
 
   for phase_setting in create_permutations(&phases) {
     let mut programs: Vec<Program> = Vec::new();
     for i in 0..5 {
       programs.push(prepare_program(program_code, &vec![]));
-      programs[i].input.push_back(phase_setting[i]);
+      programs[i].input.push_back(phase_setting[i] as i64);
     }
     programs[0].input.push_back(0);
 
@@ -119,12 +142,23 @@ fn find_max_thuster_feedback_loop(program_code: &Vec<i32>, phases: &Vec<i32>) ->
 }
 
 fn preprocessing(lines: &Vec<String>) -> Vec<i32> {
-  let mut program = lines[0]
+  let program = lines[0]
     .split(",")
     .collect::<Vec<&str>>()
     .iter()
     .map(|l| l.parse::<i32>().unwrap())
     .collect::<Vec<i32>>();
+
+  program
+}
+
+fn preprocessing_i64(lines: &Vec<String>) -> Vec<i64> {
+  let program = lines[0]
+    .split(",")
+    .collect::<Vec<&str>>()
+    .iter()
+    .map(|l| l.parse::<i64>().unwrap())
+    .collect::<Vec<i64>>();
 
   program
 }
@@ -138,21 +172,25 @@ fn run_program(program: &mut Program) {
     let mode = vec![
       current_instuction / 100 % 10,
       current_instuction / 1000 % 10,
+      current_instuction / 10000 % 10,
     ];
 
-    println!("");
-    println!("opcode: {}", opcode);
-    println!("{:?}", program);
+    // println!("");
+    // println!("opcode: {}", opcode);
+    // println!("{:?}", program);
     match opcode {
       1 => {
         //  add
         let (first_param, second_param) =
           get_params(&mode, &program.code, program.pc, program.relative_base);
         let result = first_param + second_param;
-        let store_address = *program
+        let mut store_address = *program
           .code
           .get(&(program.pc + 3))
           .expect("Memory access error");
+        if mode[2] == 2 {
+          store_address += program.relative_base;
+        }
         program.code.insert(store_address, result);
         program.pc += 4;
       }
@@ -161,22 +199,30 @@ fn run_program(program: &mut Program) {
         let (first_param, second_param) =
           get_params(&mode, &program.code, program.pc, program.relative_base);
         let result = first_param * second_param;
-        let store_address = *program
+        let mut store_address = *program
           .code
           .get(&(program.pc + 3))
           .expect("Memory access error");
+        if mode[2] == 2 {
+          store_address += program.relative_base;
+        }
         program.code.insert(store_address, result);
         program.pc += 4;
       }
       3 => {
         // input instruction
+        // println!("{:?}", program);
         if program.input.is_empty() {
           return;
         }
-        let store_address = *program
+        let mut store_address = *program
           .code
           .get(&(program.pc + 1))
           .expect("Memory access error");
+        if mode[0] == 2 {
+          store_address += program.relative_base;
+        }
+
         let next_input = program.input.pop_front().expect("No input in input vector");
         program.code.insert(store_address, next_input);
         program.pc += 2;
@@ -211,10 +257,13 @@ fn run_program(program: &mut Program) {
         // less than
         let (first_param, second_param) =
           get_params(&mode, &program.code, program.pc, program.relative_base);
-        let store_address = *program
+        let mut store_address = *program
           .code
           .get(&(program.pc + 3))
           .expect("Memory access error");
+        if mode[2] == 2 {
+          store_address += program.relative_base;
+        }
 
         if first_param < second_param {
           program.code.insert(store_address, 1);
@@ -227,10 +276,14 @@ fn run_program(program: &mut Program) {
         // equals
         let (first_param, second_param) =
           get_params(&mode, &program.code, program.pc, program.relative_base);
-        let store_address = *program
+        let mut store_address = *program
           .code
           .get(&(program.pc + 3))
           .expect("Memory access error");
+
+        if mode[2] == 2 {
+          store_address += program.relative_base;
+        }
 
         if first_param == second_param {
           program.code.insert(store_address, 1);
@@ -260,15 +313,15 @@ fn run_program(program: &mut Program) {
   }
 }
 
-fn get_next_param(mode: &Vec<i32>, intcode: &HashMap<i32, i32>, pc: i32, rel_base: i32) -> (i32) {
+fn get_next_param(mode: &Vec<i64>, intcode: &HashMap<i64, i64>, pc: i64, rel_base: i64) -> (i64) {
   match mode[0] {
     0 => *intcode
-      .get(&(intcode.get(&(pc + 1)).expect("memory read error")))
-      .expect("memory read error"),
-    1 => *intcode.get(&(pc + 1)).expect("memory read error"),
+      .get(&(intcode.get(&(pc + 1)).unwrap_or(&0)))
+      .unwrap_or(&0),
+    1 => *intcode.get(&(pc + 1)).unwrap_or(&0),
     2 => *intcode
-      .get(&((intcode.get(&(pc + 1)).expect("memory read error")) + rel_base))
-      .expect("memory read error"),
+      .get(&((intcode.get(&(pc + 1)).unwrap_or(&0)) + rel_base))
+      .unwrap_or(&0),
     _ => {
       println!("mode match error");
       0
@@ -276,24 +329,24 @@ fn get_next_param(mode: &Vec<i32>, intcode: &HashMap<i32, i32>, pc: i32, rel_bas
   }
 }
 
-fn get_params(mode: &Vec<i32>, intcode: &HashMap<i32, i32>, pc: i32, rel_base: i32) -> (i32, i32) {
-  println!("{:?}", mode);
+fn get_params(mode: &Vec<i64>, intcode: &HashMap<i64, i64>, pc: i64, rel_base: i64) -> (i64, i64) {
+  // println!("mode: {:?}", mode);
   let first_param = match mode[0] {
     0 => {
       let param_address = pc + 1;
 
-      println!("param_addr: {}", param_address);
+      // println!("param_addr: {}", param_address);
 
-      let param = intcode.get(&param_address).expect("memory read error");
+      let param = intcode.get(&param_address).unwrap_or(&0);
 
-      println!("param: {}", param);
+      // println!("param: {}", param);
       // *param
       *intcode.get(&param).unwrap_or(&0) //expect("memory read error")
     }
-    1 => *intcode.get(&(pc + 1)).expect("memory read error"),
+    1 => *intcode.get(&(pc + 1)).unwrap_or(&0),
     2 => *intcode
-      .get(&((intcode.get(&(pc + 1)).expect("memory read error")) + rel_base))
-      .expect("memory read error"),
+      .get(&((intcode.get(&(pc + 1)).unwrap_or(&0)) + rel_base))
+      .unwrap_or(&0),
     _ => {
       println!("mode match error");
       0
@@ -301,12 +354,12 @@ fn get_params(mode: &Vec<i32>, intcode: &HashMap<i32, i32>, pc: i32, rel_base: i
   };
   let second_param = match mode[1] {
     0 => *intcode
-      .get(&(intcode.get(&(pc + 2)).expect("memory read error")))
-      .expect("memory read error"),
-    1 => *intcode.get(&(pc + 2)).expect("memory read error"),
+      .get(&(intcode.get(&(pc + 2)).unwrap_or(&0)))
+      .unwrap_or(&0),
+    1 => *intcode.get(&(pc + 2)).unwrap_or(&0),
     2 => *intcode
-      .get(&((intcode.get(&(pc + 1)).expect("memory read error")) + rel_base))
-      .expect("memory read error"),
+      .get(&((intcode.get(&(pc + 2)).unwrap_or(&0)) + rel_base))
+      .unwrap_or(&0),
     _ => {
       println!("mode match error");
       0
@@ -335,6 +388,36 @@ mod tests {
   use super::*;
 
   #[test]
+  fn test_203_instruction() {
+    let mut vec = vec![109_i64, 5, 203, 0, 99];
+    let mut program = prepare_program_i64(&mut vec, &vec![44]);
+    run_program(&mut program);
+
+    println!("{:?}", program.code);
+    let expected = [109_i64, 5, 203, 0, 99, 44];
+    for (k, v) in &program.code {
+      assert_eq!(v, expected.get(*k as usize).unwrap());
+    }
+  }
+
+  #[test]
+  fn test_large_number_parameter() {
+    let mut vec = vec![104, 1125899906842624_i64, 99];
+    let mut program = prepare_program_i64(&mut vec, &vec![]);
+    run_program(&mut program);
+
+    assert_eq!(program.output.pop_front().unwrap(), 1125899906842624_i64);
+  }
+
+  #[test]
+  fn test_multiplication_of_large_number() {
+    let mut vec = vec![1102, 34915192, 34915192, 7, 4, 7, 99, 0];
+    let mut program = prepare_program(&mut vec, &vec![]);
+    run_program(&mut program);
+
+    assert_eq!(program.output.pop_front().unwrap(), 1219070632396864_i64);
+  }
+  #[test]
   fn copy_self_to_output() {
     let mut vec = vec![
       109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
@@ -344,7 +427,7 @@ mod tests {
 
     println!("output: {:?}", program.output);
     for (k, v) in program.output.iter().enumerate() {
-      assert_eq!(v, vec.get(k as usize).unwrap());
+      assert_eq!(*v, *vec.get(k as usize).unwrap() as i64);
     }
   }
 
