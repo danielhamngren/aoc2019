@@ -1,13 +1,13 @@
 use permutator::Permutation;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 
 use crate::utils;
 
 // TODO:
-// 1) Store program in dictionary
+// 1) Store program in dictionary Check!
 // 2) Test if i64 is large enough integer
 // 3) Output should be VecDeque. Check!
-// 4) Implement instruction 9
+// 4) Implement instruction 9 Check!
 // 5) Change old unit tests Check!
 
 pub fn day9() {
@@ -42,34 +42,31 @@ fn part2(lines: &Vec<String>) {
 
 fn prepare_program(code: &Vec<i32>, inputs: &Vec<i32>) -> Program {
   let mut program = Program {
-    code: code.clone(),
+    code: HashMap::new(),
     pc: 0,
     input: VecDeque::new(),
     running: true,
     output: VecDeque::new(),
+    relative_base: 0,
   };
+  for (i, instruction) in code.iter().enumerate() {
+    program.code.insert(i as i32, *instruction);
+  }
+
   for input in inputs {
     program.input.push_back(*input);
   }
   program
 }
 
-fn find_max_thuster(program: &Vec<i32>, phases: &Vec<i32>) -> i32 {
+fn find_max_thuster(code: &Vec<i32>, phases: &Vec<i32>) -> i32 {
   let mut max_thruster = 0;
 
   for phase_setting in create_permutations(&phases) {
     let mut output = 0;
 
     for setting in &phase_setting {
-      let mut program = Program {
-        code: program.clone(),
-        pc: 0,
-        input: VecDeque::new(),
-        running: true,
-        output: VecDeque::new(),
-      };
-      program.input.push_back(*setting);
-      program.input.push_back(output);
+      let mut program = prepare_program(code, &vec![*setting, output]);
 
       run_program(&mut program);
       output = program.output.pop_front().expect("output error");
@@ -85,11 +82,12 @@ fn find_max_thuster(program: &Vec<i32>, phases: &Vec<i32>) -> i32 {
 
 #[derive(Debug)]
 struct Program {
-  code: Vec<i32>,
-  pc: usize,
+  code: HashMap<i32, i32>,
+  pc: i32,
   input: VecDeque<i32>,
   running: bool,
   output: VecDeque<i32>,
+  relative_base: i32,
 }
 
 fn find_max_thuster_feedback_loop(program_code: &Vec<i32>, phases: &Vec<i32>) -> i32 {
@@ -98,13 +96,7 @@ fn find_max_thuster_feedback_loop(program_code: &Vec<i32>, phases: &Vec<i32>) ->
   for phase_setting in create_permutations(&phases) {
     let mut programs: Vec<Program> = Vec::new();
     for i in 0..5 {
-      programs.push(Program {
-        code: program_code.clone(),
-        pc: 0,
-        input: VecDeque::new(),
-        running: true,
-        output: VecDeque::new(),
-      });
+      programs.push(prepare_program(program_code, &vec![]));
       programs[i].input.push_back(phase_setting[i]);
     }
     programs[0].input.push_back(0);
@@ -139,11 +131,8 @@ fn preprocessing(lines: &Vec<String>) -> Vec<i32> {
 
 fn run_program(program: &mut Program) {
   while program.running {
-    if program.pc >= program.code.len() {
-      program.running = false;
-    }
     // handle immediate/position mode params
-    let current_instuction = program.code[program.pc];
+    let current_instuction = program.code.get(&program.pc).expect("Memory access error");
 
     let opcode = current_instuction % 100;
     let mode = vec![
@@ -151,21 +140,32 @@ fn run_program(program: &mut Program) {
       current_instuction / 1000 % 10,
     ];
 
+    println!("");
+    println!("opcode: {}", opcode);
+    println!("{:?}", program);
     match opcode {
       1 => {
         //  add
-        let (first_param, second_param) = get_params(&mode, &program.code, program.pc);
+        let (first_param, second_param) =
+          get_params(&mode, &program.code, program.pc, program.relative_base);
         let result = first_param + second_param;
-        let store_address = program.code[program.pc + 3] as usize;
-        program.code[store_address] = result;
+        let store_address = *program
+          .code
+          .get(&(program.pc + 3))
+          .expect("Memory access error");
+        program.code.insert(store_address, result);
         program.pc += 4;
       }
       2 => {
         // multiply
-        let (first_param, second_param) = get_params(&mode, &program.code, program.pc);
+        let (first_param, second_param) =
+          get_params(&mode, &program.code, program.pc, program.relative_base);
         let result = first_param * second_param;
-        let store_address = program.code[program.pc + 3] as usize;
-        program.code[store_address] = result;
+        let store_address = *program
+          .code
+          .get(&(program.pc + 3))
+          .expect("Memory access error");
+        program.code.insert(store_address, result);
         program.pc += 4;
       }
       3 => {
@@ -173,59 +173,77 @@ fn run_program(program: &mut Program) {
         if program.input.is_empty() {
           return;
         }
-        let store_address = program.code[program.pc + 1] as usize;
+        let store_address = *program
+          .code
+          .get(&(program.pc + 1))
+          .expect("Memory access error");
         let next_input = program.input.pop_front().expect("No input in input vector");
-        program.code[store_address] = next_input;
-        program.pc += 2
+        program.code.insert(store_address, next_input);
+        program.pc += 2;
       }
       4 => {
         // output instruction
-        let param = get_next_param(&mode, &program.code, program.pc);
-        let fetch_address = program.code[program.pc + 1] as usize;
+        let param = get_next_param(&mode, &program.code, program.pc, program.relative_base);
         program.output.push_back(param);
         program.pc += 2
       }
       5 => {
         // jump-if-true
-        let (first_param, second_param) = get_params(&mode, &program.code, program.pc);
+        let (first_param, second_param) =
+          get_params(&mode, &program.code, program.pc, program.relative_base);
         if first_param != 0 {
-          program.pc = second_param as usize;
+          program.pc = second_param;
         } else {
           program.pc += 3
         }
       }
       6 => {
         // jump-if-false
-        let (first_param, second_param) = get_params(&mode, &program.code, program.pc);
+        let (first_param, second_param) =
+          get_params(&mode, &program.code, program.pc, program.relative_base);
         if first_param == 0 {
-          program.pc = second_param as usize;
+          program.pc = second_param;
         } else {
           program.pc += 3
         }
       }
       7 => {
         // less than
-        let (first_param, second_param) = get_params(&mode, &program.code, program.pc);
-        let store_address = program.code[program.pc + 3] as usize;
+        let (first_param, second_param) =
+          get_params(&mode, &program.code, program.pc, program.relative_base);
+        let store_address = *program
+          .code
+          .get(&(program.pc + 3))
+          .expect("Memory access error");
 
         if first_param < second_param {
-          program.code[store_address] = 1;
+          program.code.insert(store_address, 1);
         } else {
-          program.code[store_address] = 0;
+          program.code.insert(store_address, 0);
         }
         program.pc += 4;
       }
       8 => {
         // equals
-        let (first_param, second_param) = get_params(&mode, &program.code, program.pc);
-        let store_address = program.code[program.pc + 3] as usize;
+        let (first_param, second_param) =
+          get_params(&mode, &program.code, program.pc, program.relative_base);
+        let store_address = *program
+          .code
+          .get(&(program.pc + 3))
+          .expect("Memory access error");
 
         if first_param == second_param {
-          program.code[store_address] = 1;
+          program.code.insert(store_address, 1);
         } else {
-          program.code[store_address] = 0;
+          program.code.insert(store_address, 0);
         }
         program.pc += 4;
+      }
+      9 => {
+        // set relative base
+        let param = get_next_param(&mode, &program.code, program.pc, program.relative_base);
+        program.relative_base += param;
+        program.pc += 2
       }
       99 => {
         // halt
@@ -233,7 +251,7 @@ fn run_program(program: &mut Program) {
         return;
       }
       _ => {
-        println!("Match error!");
+        println!("Match error! opcode: {}", opcode);
         program.running = false;
       }
     }
@@ -242,10 +260,15 @@ fn run_program(program: &mut Program) {
   }
 }
 
-fn get_next_param(mode: &Vec<i32>, intcode: &Vec<i32>, pc: usize) -> (i32) {
+fn get_next_param(mode: &Vec<i32>, intcode: &HashMap<i32, i32>, pc: i32, rel_base: i32) -> (i32) {
   match mode[0] {
-    0 => intcode[intcode[pc + 1] as usize],
-    1 => intcode[pc + 1],
+    0 => *intcode
+      .get(&(intcode.get(&(pc + 1)).expect("memory read error")))
+      .expect("memory read error"),
+    1 => *intcode.get(&(pc + 1)).expect("memory read error"),
+    2 => *intcode
+      .get(&((intcode.get(&(pc + 1)).expect("memory read error")) + rel_base))
+      .expect("memory read error"),
     _ => {
       println!("mode match error");
       0
@@ -253,18 +276,37 @@ fn get_next_param(mode: &Vec<i32>, intcode: &Vec<i32>, pc: usize) -> (i32) {
   }
 }
 
-fn get_params(mode: &Vec<i32>, intcode: &Vec<i32>, pc: usize) -> (i32, i32) {
+fn get_params(mode: &Vec<i32>, intcode: &HashMap<i32, i32>, pc: i32, rel_base: i32) -> (i32, i32) {
+  println!("{:?}", mode);
   let first_param = match mode[0] {
-    0 => intcode[intcode[pc + 1] as usize],
-    1 => intcode[pc + 1],
+    0 => {
+      let param_address = pc + 1;
+
+      println!("param_addr: {}", param_address);
+
+      let param = intcode.get(&param_address).expect("memory read error");
+
+      println!("param: {}", param);
+      // *param
+      *intcode.get(&param).unwrap_or(&0) //expect("memory read error")
+    }
+    1 => *intcode.get(&(pc + 1)).expect("memory read error"),
+    2 => *intcode
+      .get(&((intcode.get(&(pc + 1)).expect("memory read error")) + rel_base))
+      .expect("memory read error"),
     _ => {
       println!("mode match error");
       0
     }
   };
   let second_param = match mode[1] {
-    0 => intcode[intcode[pc + 2] as usize],
-    1 => intcode[pc + 2],
+    0 => *intcode
+      .get(&(intcode.get(&(pc + 2)).expect("memory read error")))
+      .expect("memory read error"),
+    1 => *intcode.get(&(pc + 2)).expect("memory read error"),
+    2 => *intcode
+      .get(&((intcode.get(&(pc + 1)).expect("memory read error")) + rel_base))
+      .expect("memory read error"),
     _ => {
       println!("mode match error");
       0
@@ -291,6 +333,20 @@ fn create_permutations(input: &Vec<i32>) -> Vec<Vec<i32>> {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn copy_self_to_output() {
+    let mut vec = vec![
+      109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
+    ];
+    let mut program = prepare_program(&mut vec, &vec![1]);
+    run_program(&mut program);
+
+    println!("output: {:?}", program.output);
+    for (k, v) in program.output.iter().enumerate() {
+      assert_eq!(v, vec.get(k as usize).unwrap());
+    }
+  }
 
   #[test]
   fn test_find_max_thruster_feedback_loop1() {
@@ -370,7 +426,11 @@ mod tests {
     let mut vec = vec![1, 0, 0, 0, 99];
     let mut program = prepare_program(&mut vec, &vec![1]);
     run_program(&mut program);
-    assert_eq!(program.code, [2, 0, 0, 0, 99]);
+
+    let expected = [2, 0, 0, 0, 99];
+    for (k, v) in &program.code {
+      assert_eq!(v, expected.get(*k as usize).unwrap());
+    }
   }
 
   #[test]
@@ -378,7 +438,10 @@ mod tests {
     let mut vec = vec![2, 3, 0, 3, 99];
     let mut program = prepare_program(&mut vec, &vec![1]);
     run_program(&mut program);
-    assert_eq!(program.code, [2, 3, 0, 6, 99]);
+    let expected = [2, 3, 0, 6, 99];
+    for (k, v) in &program.code {
+      assert_eq!(v, expected.get(*k as usize).unwrap());
+    }
   }
 
   #[test]
@@ -386,7 +449,10 @@ mod tests {
     let mut vec = vec![2, 4, 4, 5, 99, 0];
     let mut program = prepare_program(&mut vec, &vec![1]);
     run_program(&mut program);
-    assert_eq!(program.code, [2, 4, 4, 5, 99, 9801]);
+    let expected = [2, 4, 4, 5, 99, 9801];
+    for (k, v) in &program.code {
+      assert_eq!(v, expected.get(*k as usize).unwrap());
+    }
   }
 
   #[test]
@@ -394,14 +460,20 @@ mod tests {
     let mut vec = vec![1, 1, 1, 4, 99, 5, 6, 0, 99];
     let mut program = prepare_program(&mut vec, &vec![1]);
     run_program(&mut program);
-    assert_eq!(program.code, [30, 1, 1, 4, 2, 5, 6, 0, 99]);
+    let expected = [30, 1, 1, 4, 2, 5, 6, 0, 99];
+    for (k, v) in &program.code {
+      assert_eq!(v, expected.get(*k as usize).unwrap());
+    }
   }
   #[test]
   fn example_5() {
     let mut vec = vec![1002, 4, 3, 4, 33];
     let mut program = prepare_program(&mut vec, &vec![1]);
     run_program(&mut program);
-    assert_eq!(program.code, [1002, 4, 3, 4, 99]);
+    let expected = vec![1002, 4, 3, 4, 99];
+    for (k, v) in &program.code {
+      assert_eq!(v, expected.get(*k as usize).unwrap());
+    }
   }
   #[test]
   fn equal_to_8_position_false() {
